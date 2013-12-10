@@ -86,6 +86,7 @@ func (proxy *Proxy) Lookup(request *http.Request) (*route.Endpoint, bool) {
 }
 
 func (proxy *Proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Request) {
+	fmt.Printf("SERVING!!!!!!!!!!!!!!\n	")
 	startedAt := time.Now()
 
 	handler := NewRequestHandler(request, responseWriter)

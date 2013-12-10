@@ -566,6 +566,30 @@ func (s *ProxySuite) TestRequestTerminatesWhenResponseTakesTooLong(c *C) {
 	c.Check(time.Since(started) < time.Duration(800*time.Millisecond), Equals, true)
 }
 
+func (s *ProxySuite) TestRequestSupportEncodedUrls(c *C) {
+	serverResult := make(chan error)
+	s.RegisterHandler(c, "decoding-app", func(x *httpConn) {
+		x.CheckLine("GET /hello%2Bworld HTTP/1.1")
+
+		x.WriteLines([]string{
+			"HTTP/1.1 200 OK",
+			fmt.Sprintf("Content-Length: 0"),
+		})
+
+		serverResult <- nil
+	})
+
+	x := s.DialProxy(c)
+
+	req := x.NewRequest("GET", "/hello%2Bworld", nil)
+	req.Host = "decoding-app"
+	x.WriteRequest(req)
+
+	x.Conn.Close()
+
+	c.Assert(<-serverResult, NotNil)
+}
+
 func (s *ProxySuite) TestRequestTerminatedWhenClientClosesConnection(c *C) {
 	serverResult := make(chan error)
 	s.RegisterHandler(c, "slow-app", func(x *httpConn) {

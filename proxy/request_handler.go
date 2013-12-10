@@ -31,6 +31,8 @@ type RequestHandler struct {
 func NewRequestHandler(request *http.Request, response http.ResponseWriter) RequestHandler {
 	logger := steno.NewLogger("router.proxy.request-handler")
 
+	fmt.Printf("\n\n~~~~~~~~~~~~~ PATH: %s\n\n", request.URL.Path)
+
 	logger.Set("RemoteAddr", request.RemoteAddr)
 	logger.Set("Host", request.Host)
 	logger.Set("Path", request.URL.Path)
