@@ -137,7 +137,7 @@ var _ = Describe("Router Integration", func() {
 			Eventually(grouter, 5).Should(Exit(0))
 		})
 
-		It("will timeout if requests take too long", func() {
+		It("will timeout if requests take too long", func(done Done) {
 			localip, err := vcap.LocalIP()
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -180,6 +180,7 @@ var _ = Describe("Router Integration", func() {
 			Ω(result).Should(BeAssignableToTypeOf(&url.Error{}))
 			urlErr := result.(*url.Error)
 			Ω(urlErr.Err).Should(Equal(io.EOF))
+			close(done)
 		}, 10.0)
 	})
 
