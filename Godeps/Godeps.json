@@ -33,7 +33,7 @@
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/gunk/natsrunner",
-			"Rev": "48b03ff5d4d966a0954af043646abe60a04f6934"
+			"Rev": "172cf35a1499df49e081c5ba7ff2e02a51d9dda6"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/loggregatorlib/cfcomponent/generic_logger",
