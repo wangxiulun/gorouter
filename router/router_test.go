@@ -33,6 +33,7 @@ import (
 var _ = Describe("Router", func() {
 
 	var natsRunner *natsrunner.NATSRunner
+	var natsPort uint16
 	var config *cfg.Config
 
 	var mbusClient yagnats.NATSConn
@@ -41,7 +42,7 @@ var _ = Describe("Router", func() {
 	var router *Router
 
 	BeforeEach(func() {
-		natsPort := test_util.NextAvailPort()
+		natsPort = test_util.NextAvailPort()
 		natsRunner = natsrunner.NewNATSRunner(int(natsPort))
 		natsRunner.Start()
 
@@ -146,15 +147,43 @@ var _ = Describe("Router", func() {
 
 		It("sends start on a nats connect", func() {
 			started := make(chan bool)
+			cb := make(chan bool)
 
 			mbusClient.Subscribe("router.start", func(*nats.Msg) {
 				started <- true
+			})
+
+			mbusClient.AddReconnectedCB(func(_ *nats.Conn) {
+				cb <- true
 			})
 
 			natsRunner.Stop()
 			natsRunner.Start()
 
 			Eventually(started, 4).Should(Receive())
+			Eventually(cb, 4).Should(Receive())
+		})
+
+		Context("On NATS Closed callback", func() {
+			It("reinitializes the NATS connection", func() {
+				started := make(chan bool)
+				cb := make(chan bool, 1)
+
+				messageBus, err := yagnats.Connect([]string{fmt.Sprintf("nats://127.0.0.1:%d", int(natsPort))})
+				Expect(err).ToNot(HaveOccurred())
+
+				messageBus.Subscribe("router.start", func(*nats.Msg) {
+					started <- true
+				})
+
+				mbusClient.AddClosedCB(func(_ *nats.Conn) {
+					cb <- true
+				})
+				mbusClient.Close()
+
+				Eventually(started, 4).Should(Receive())
+				Eventually(cb, 4).Should(Receive())
+			})
 		})
 	})
 

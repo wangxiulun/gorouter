@@ -1,6 +1,9 @@
 package config
 
 import (
+	"fmt"
+	"net/url"
+
 	"github.com/cloudfoundry-incubator/candiedyaml"
 	vcap "github.com/cloudfoundry/gorouter/common"
 	steno "github.com/cloudfoundry/gosteno"
@@ -135,6 +138,20 @@ func (c *Config) Process() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func (c *Config) NatsMembers() []string {
+	var natsMembers []string
+	for _, info := range c.Nats {
+		uri := url.URL{
+			Scheme: "nats",
+			User:   url.UserPassword(info.User, info.Pass),
+			Host:   fmt.Sprintf("%s:%d", info.Host, info.Port),
+		}
+		natsMembers = append(natsMembers, uri.String())
+	}
+
+	return natsMembers
 }
 
 func (c *Config) Initialize(configYAML []byte) error {
