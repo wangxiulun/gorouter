@@ -163,28 +163,6 @@ var _ = Describe("Router", func() {
 			Eventually(started, 4).Should(Receive())
 			Eventually(cb, 4).Should(Receive())
 		})
-
-		Context("On NATS Closed callback", func() {
-			It("reinitializes the NATS connection", func() {
-				started := make(chan bool)
-				cb := make(chan bool, 1)
-
-				messageBus, err := yagnats.Connect([]string{fmt.Sprintf("nats://127.0.0.1:%d", int(natsPort))})
-				Expect(err).ToNot(HaveOccurred())
-
-				messageBus.Subscribe("router.start", func(*nats.Msg) {
-					started <- true
-				})
-
-				mbusClient.AddClosedCB(func(_ *nats.Conn) {
-					cb <- true
-				})
-				mbusClient.Close()
-
-				Eventually(started, 4).Should(Receive())
-				Eventually(cb, 4).Should(Receive())
-			})
-		})
 	})
 
 	It("registry contains last updated varz", func() {

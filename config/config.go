@@ -140,18 +140,18 @@ func (c *Config) Process() {
 	}
 }
 
-func (c *Config) NatsMembers() []string {
-	var natsMembers []string
+func (c *Config) NatsServers() []string {
+	var natsServers []string
 	for _, info := range c.Nats {
 		uri := url.URL{
 			Scheme: "nats",
 			User:   url.UserPassword(info.User, info.Pass),
 			Host:   fmt.Sprintf("%s:%d", info.Host, info.Port),
 		}
-		natsMembers = append(natsMembers, uri.String())
+		natsServers = append(natsServers, uri.String())
 	}
 
-	return natsMembers
+	return natsServers
 }
 
 func (c *Config) Initialize(configYAML []byte) error {

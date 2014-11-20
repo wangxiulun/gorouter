@@ -1,8 +1,6 @@
 package config_test
 
 import (
-	"fmt"
-
 	. "github.com/cloudfoundry/gorouter/config"
 
 	. "github.com/onsi/ginkgo"
@@ -151,7 +149,7 @@ start_response_delay_interval: 15
 			})
 		})
 
-		Describe("NatsMembers", func() {
+		Describe("NatsServers", func() {
 			var b = []byte(`
 nats:
   - host: remotehost
@@ -167,8 +165,7 @@ nats:
 			It("returns a slice of of the configured NATS servers", func() {
 				config.Initialize(b)
 
-				natsServers := config.NatsMembers()
-				fmt.Printf("adghahdgajs: %#v\n", natsServers)
+				natsServers := config.NatsServers()
 				Expect(natsServers[0]).To(Equal("nats://user:pass@remotehost:4223"))
 				Expect(natsServers[1]).To(Equal("nats://user2:pass2@remotehost2:4223"))
 			})

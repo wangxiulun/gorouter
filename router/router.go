@@ -96,7 +96,10 @@ func (r *Router) Run() <-chan error {
 	// Kickstart sending start messages
 	r.SendStartMessage()
 
-	r.setupNATSCallbacks()
+	r.mbusClient.AddReconnectedCB(func(conn *nats.Conn) {
+		r.logger.Infof("Reconnecting to NATS server %s...", conn.Opts.Url)
+		r.SendStartMessage()
+	})
 
 	// Schedule flushing active app's app_id
 	r.ScheduleFlushApps()
@@ -220,17 +223,6 @@ func (r *Router) ScheduleFlushApps() {
 			}
 		}
 	}()
-}
-
-func (r *Router) setupNATSCallbacks() {
-	r.mbusClient.AddReconnectedCB(func(conn *nats.Conn) {
-		r.logger.Infof("Reconnecting to NATS server %s...", conn.Opts.Url)
-		r.SendStartMessage()
-	})
-
-	r.mbusClient.AddClosedCB(func(conn *nats.Conn) {
-		r.logger.Errorf("Unexpected Close on NATS client.")
-	})
 }
 
 func (r *Router) flushApps(t time.Time) {
