@@ -4,7 +4,6 @@ import (
 	"code.google.com/p/gogoprotobuf/proto"
 	"errors"
 	"github.com/cloudfoundry/dropsonde/events"
-	"time"
 )
 
 var ErrorMissingOrigin = errors.New("Event not emitted due to missing origin information")
@@ -15,7 +14,7 @@ func Wrap(e events.Event, origin string) (*events.Envelope, error) {
 		return nil, ErrorMissingOrigin
 	}
 
-	envelope := &events.Envelope{Origin: proto.String(origin), Timestamp: proto.Int64(time.Now().UnixNano())}
+	envelope := &events.Envelope{Origin: proto.String(origin)}
 
 	switch e := e.(type) {
 	case *events.Heartbeat:

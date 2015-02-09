@@ -6,20 +6,17 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/cloudfoundry/dropsonde"
-	"github.com/cloudfoundry/gorouter/access_log"
-	router_http "github.com/cloudfoundry/gorouter/common/http"
-	"github.com/cloudfoundry/gorouter/route"
+	"github.com/cloudfoundry/dropsonde/autowire"
 	steno "github.com/cloudfoundry/gosteno"
+	"github.com/dinp/gorouter/access_log"
+	router_http "github.com/dinp/gorouter/common/http"
+	"github.com/dinp/gorouter/route"
 )
 
-const (
-	VcapCookieId    = "__VCAP_ID__"
-	StickyCookieKey = "JSESSIONID"
-	retries         = 3
-)
+const retries = 3
 
 var noEndpointsAvailable = errors.New("No endpoints available")
 
@@ -38,6 +35,7 @@ type ProxyReporter interface {
 
 type Proxy interface {
 	ServeHTTP(responseWriter http.ResponseWriter, request *http.Request)
+	Wait()
 }
 
 type ProxyArgs struct {
@@ -47,22 +45,22 @@ type ProxyArgs struct {
 	Registry        LookupRegistry
 	Reporter        ProxyReporter
 	AccessLogger    access_log.AccessLogger
-	SecureCookies   bool
 }
 
 type proxy struct {
-	ip            string
-	traceKey      string
-	logger        *steno.Logger
-	registry      LookupRegistry
-	reporter      ProxyReporter
-	accessLogger  access_log.AccessLogger
-	transport     *http.Transport
-	secureCookies bool
+	ip           string
+	traceKey     string
+	logger       *steno.Logger
+	registry     LookupRegistry
+	reporter     ProxyReporter
+	accessLogger access_log.AccessLogger
+	transport    *http.Transport
+
+	waitgroup *sync.WaitGroup
 }
 
 func NewProxy(args ProxyArgs) Proxy {
-	p := &proxy{
+	return &proxy{
 		accessLogger: args.AccessLogger,
 		traceKey:     args.TraceKey,
 		ip:           args.Ip,
@@ -80,11 +78,11 @@ func NewProxy(args ProxyArgs) Proxy {
 				}
 				return conn, err
 			},
-			DisableKeepAlives: true,
+			DisableKeepAlives:     true,
+			ResponseHeaderTimeout: args.EndpointTimeout,
 		},
-		secureCookies: args.SecureCookies,
+		waitgroup: &sync.WaitGroup{},
 	}
-	return p
 }
 
 func hostWithoutPort(req *http.Request) string {
@@ -99,14 +97,8 @@ func hostWithoutPort(req *http.Request) string {
 	return host
 }
 
-func (p *proxy) getStickySession(request *http.Request) string {
-	// Try choosing a backend using sticky session
-	if _, err := request.Cookie(StickyCookieKey); err == nil {
-		if sticky, err := request.Cookie(VcapCookieId); err == nil {
-			return sticky.Value
-		}
-	}
-	return ""
+func (p *proxy) Wait() {
+	p.waitgroup.Wait()
 }
 
 func (p *proxy) lookup(request *http.Request) *route.Pool {
@@ -125,8 +117,11 @@ func (p *proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Requ
 
 	handler := NewRequestHandler(request, responseWriter, p.reporter, &accessLog)
 
+	p.waitgroup.Add(1)
+
 	defer func() {
 		p.accessLogger.Log(accessLog)
+		p.waitgroup.Done()
 	}()
 
 	if !isProtocolSupported(request) {
@@ -146,9 +141,8 @@ func (p *proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	stickyEndpointId := p.getStickySession(request)
 	iter := &wrappedIterator{
-		nested: routePool.Endpoints(stickyEndpointId),
+		nested: routePool.Endpoints(""),
 
 		afterNext: func(endpoint *route.Endpoint) {
 			if endpoint != nil {
@@ -171,7 +165,7 @@ func (p *proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Requ
 
 	proxyWriter := newProxyResponseWriter(responseWriter)
 	roundTripper := &proxyRoundTripper{
-		transport: dropsonde.InstrumentedRoundTripper(p.transport),
+		transport: autowire.InstrumentedRoundTripper(p.transport),
 		iter:      iter,
 		handler:   &handler,
 
@@ -197,10 +191,6 @@ func (p *proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.Requ
 				handler.HandleBadGateway(err)
 				proxyWriter.Done()
 				return
-			}
-
-			if endpoint.PrivateInstanceId != "" {
-				setupStickySession(responseWriter, rsp, endpoint, p.secureCookies)
 			}
 		},
 	}
@@ -255,7 +245,7 @@ func (p *proxyRoundTripper) RoundTrip(request *http.Request) (*http.Response, er
 		}
 
 		request.URL.Host = endpoint.CanonicalAddr()
-		request.Header.Set("X-CF-ApplicationID", endpoint.ApplicationId)
+		request.Header.Set("X-CF-ApplicationID", endpoint.CanonicalAddr())
 		setRequestXCfInstanceId(request, endpoint)
 
 		res, err = p.transport.RoundTrip(request)
@@ -303,24 +293,6 @@ func (i *wrappedIterator) Next() *route.Endpoint {
 
 func (i *wrappedIterator) EndpointFailed() {
 	i.nested.EndpointFailed()
-}
-
-func setupStickySession(responseWriter http.ResponseWriter, response *http.Response, endpoint *route.Endpoint, secureCookies bool) {
-	for _, v := range response.Cookies() {
-		if v.Name == StickyCookieKey {
-			cookie := &http.Cookie{
-				Name:  VcapCookieId,
-				Value: endpoint.PrivateInstanceId,
-				Path:  "/",
-
-				HttpOnly: true,
-				Secure:   secureCookies,
-			}
-
-			http.SetCookie(responseWriter, cookie)
-			return
-		}
-	}
 }
 
 func isProtocolSupported(request *http.Request) bool {

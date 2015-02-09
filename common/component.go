@@ -9,11 +9,8 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/apcera/nats"
-	. "github.com/cloudfoundry/gorouter/common/http"
 	steno "github.com/cloudfoundry/gosteno"
-	"github.com/cloudfoundry/yagnats"
-	"github.com/pivotal-golang/localip"
+	. "github.com/dinp/gorouter/common/http"
 )
 
 var procStat *ProcessStatus
@@ -41,9 +38,8 @@ type VcapComponent struct {
 }
 
 type RouterStart struct {
-	Id                               string   `json:"id"`
-	Hosts                            []string `json:"hosts"`
-	MinimumRegisterIntervalInSeconds int      `json:"minimumRegisterIntervalInSeconds"`
+	Id    string   `json:"id"`
+	Hosts []string `json:"hosts"`
 }
 
 func (c *VcapComponent) UpdateVarz() {
@@ -72,13 +68,13 @@ func (c *VcapComponent) Start() error {
 	c.UUID = fmt.Sprintf("%d-%s", c.Index, uuid)
 
 	if c.Host == "" {
-		host, err := localip.LocalIP()
+		host, err := LocalIP()
 		if err != nil {
 			log.Error(err.Error())
 			return err
 		}
 
-		port, err := localip.LocalPort()
+		port, err := GrabEphemeralPort()
 		if err != nil {
 			log.Error(err.Error())
 			return err
@@ -110,30 +106,6 @@ func (c *VcapComponent) Start() error {
 	procStat = NewProcessStatus()
 
 	c.ListenAndServe()
-	return nil
-}
-
-func (c *VcapComponent) Register(mbusClient yagnats.NATSConn) error {
-	mbusClient.Subscribe("vcap.component.discover", func(msg *nats.Msg) {
-		c.Uptime = c.StartTime.Elapsed()
-		b, e := json.Marshal(c)
-		if e != nil {
-			log.Warnf(e.Error())
-			return
-		}
-
-		mbusClient.Publish(msg.Reply, b)
-	})
-
-	b, e := json.Marshal(c)
-	if e != nil {
-		log.Error(e.Error())
-		return e
-	}
-
-	mbusClient.Publish("vcap.component.announce", b)
-
-	log.Infof("Component %s registered successfully", c.Type)
 	return nil
 }
 

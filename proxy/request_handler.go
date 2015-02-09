@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudfoundry/gorouter/access_log"
-	"github.com/cloudfoundry/gorouter/common"
-	router_http "github.com/cloudfoundry/gorouter/common/http"
-	"github.com/cloudfoundry/gorouter/route"
 	steno "github.com/cloudfoundry/gosteno"
+	"github.com/dinp/gorouter/access_log"
+	"github.com/dinp/gorouter/common"
+	router_http "github.com/dinp/gorouter/common/http"
+	"github.com/dinp/gorouter/route"
 )
 
 type RequestHandler struct {
@@ -95,8 +95,6 @@ func (h *RequestHandler) HandleBadGateway(err error) {
 func (h *RequestHandler) HandleTcpRequest(iter route.EndpointIterator) {
 	h.logger.Set("Upgrade", "tcp")
 
-	h.logrecord.StatusCode = http.StatusSwitchingProtocols
-
 	err := h.serveTcp(iter)
 	if err != nil {
 		h.writeStatus(http.StatusBadRequest, "TCP forwarding to endpoint failed.")
@@ -105,8 +103,6 @@ func (h *RequestHandler) HandleTcpRequest(iter route.EndpointIterator) {
 
 func (h *RequestHandler) HandleWebSocketRequest(iter route.EndpointIterator) {
 	h.logger.Set("Upgrade", "websocket")
-
-	h.logrecord.StatusCode = http.StatusSwitchingProtocols
 
 	err := h.serveWebSocket(iter)
 	if err != nil {
@@ -270,10 +266,7 @@ func setRequestXVcapRequestId(request *http.Request, logger *steno.Logger) {
 }
 
 func setRequestXCfInstanceId(request *http.Request, endpoint *route.Endpoint) {
-	value := endpoint.PrivateInstanceId
-	if value == "" {
-		value = endpoint.CanonicalAddr()
-	}
+	value := endpoint.CanonicalAddr()
 
 	request.Header.Set(router_http.CfInstanceIdHeader, value)
 }

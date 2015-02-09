@@ -5,8 +5,6 @@ candiedyaml
 
 YAML for Go
 
-A YAML 1.1 parser with support for YAML 1.2 features
-
 Usage
 -----
 

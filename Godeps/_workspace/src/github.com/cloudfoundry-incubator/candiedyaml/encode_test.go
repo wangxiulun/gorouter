@@ -16,11 +16,10 @@ package candiedyaml
 
 import (
 	"bytes"
-	"math"
-	"time"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"math"
+	"time"
 )
 
 var _ = Describe("Encode", func() {
@@ -37,22 +36,6 @@ var _ = Describe("Encode", func() {
 			err := enc.Encode("abc")
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(buf.String()).Should(Equal(`abc
-`))
-		})
-
-		It("encodes strings with multilines", func() {
-			err := enc.Encode("a\nc")
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(buf.String()).Should(Equal(`|-
-  a
-  c
-`))
-		})
-
-		It("handles strings that match known scalars", func() {
-			err := enc.Encode("true")
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(buf.String()).Should(Equal(`"true"
 `))
 		})
 

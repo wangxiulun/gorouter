@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cloudfoundry/gorouter/route"
+	"github.com/dinp/gorouter/route"
 )
 
 type AccessLogRecord struct {
@@ -64,7 +64,7 @@ func (r *AccessLogRecord) makeRecord() *bytes.Buffer {
 	if r.RouteEndpoint == nil {
 		fmt.Fprintf(b, "app_id:MissingRouteEndpointApplicationId")
 	} else {
-		fmt.Fprintf(b, `app_id:%s`, r.RouteEndpoint.ApplicationId)
+		fmt.Fprintf(b, `app_id:%s`, r.RouteEndpoint.CanonicalAddr())
 	}
 
 	fmt.Fprint(b, "\n")
@@ -77,11 +77,11 @@ func (r *AccessLogRecord) WriteTo(w io.Writer) (int64, error) {
 }
 
 func (r *AccessLogRecord) ApplicationId() string {
-	if r.RouteEndpoint == nil || r.RouteEndpoint.ApplicationId == "" {
+	if r.RouteEndpoint == nil {
 		return ""
 	}
 
-	return r.RouteEndpoint.ApplicationId
+	return r.RouteEndpoint.CanonicalAddr()
 }
 
 func (r *AccessLogRecord) LogMessage() string {

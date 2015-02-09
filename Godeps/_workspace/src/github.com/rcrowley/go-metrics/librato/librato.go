@@ -28,11 +28,10 @@ type Reporter struct {
 	Registry        metrics.Registry
 	Percentiles     []float64              // percentiles to report on histogram metrics
 	TimerAttributes map[string]interface{} // units in which timers will be displayed
-	intervalSec     int64
 }
 
 func NewReporter(r metrics.Registry, d time.Duration, e string, t string, s string, p []float64, u time.Duration) *Reporter {
-	return &Reporter{e, t, s, d, r, p, translateTimerAttributes(u), int64(d / time.Second)}
+	return &Reporter{e, t, s, d, r, p, translateTimerAttributes(u)}
 }
 
 func Librato(r metrics.Registry, d time.Duration, e string, t string, s string, p []float64, u time.Duration) {
@@ -47,11 +46,9 @@ func (self *Reporter) Run() {
 		var err error
 		if metrics, err = self.BuildRequest(now, self.Registry); err != nil {
 			log.Printf("ERROR constructing librato request body %s", err)
-			continue
 		}
 		if err := metricsApi.PostMetrics(metrics); err != nil {
 			log.Printf("ERROR sending metrics to librato %s", err)
-			continue
 		}
 	}
 }
@@ -79,10 +76,10 @@ func sumSquaresTimer(t metrics.Timer) float64 {
 
 func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot Batch, err error) {
 	snapshot = Batch{
-		// coerce timestamps to a stepping fn so that they line up in Librato graphs
-		MeasureTime: (now.Unix() / self.intervalSec) * self.intervalSec,
+		MeasureTime: now.Unix(),
 		Source:      self.Source,
 	}
+	snapshot.MeasureTime = now.Unix()
 	snapshot.Gauges = make([]Measurement, 0)
 	snapshot.Counters = make([]Measurement, 0)
 	histogramGaugeCount := 1 + len(self.Percentiles)
@@ -115,9 +112,9 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 				s := m.Sample()
 				measurement[Name] = fmt.Sprintf("%s.%s", name, "hist")
 				measurement[Count] = uint64(s.Count())
+				measurement[Sum] = s.Sum()
 				measurement[Max] = float64(s.Max())
 				measurement[Min] = float64(s.Min())
-				measurement[Sum] = float64(s.Sum())
 				measurement[SumSquares] = sumSquares(s)
 				gauges[0] = measurement
 				for i, p := range self.Percentiles {

@@ -4,7 +4,7 @@ import (
 	"io"
 	"regexp"
 
-	"github.com/cloudfoundry/dropsonde/logs"
+	"github.com/cloudfoundry/dropsonde/autowire/logs"
 )
 
 type FileAndLoggregatorAccessLogger struct {

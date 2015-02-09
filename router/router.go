@@ -1,21 +1,14 @@
 package router
 
 import (
-	"sync"
-
-	"github.com/apcera/nats"
-	"github.com/cloudfoundry/dropsonde"
-	vcap "github.com/cloudfoundry/gorouter/common"
-	"github.com/cloudfoundry/gorouter/config"
-	"github.com/cloudfoundry/gorouter/proxy"
-	"github.com/cloudfoundry/gorouter/registry"
-	"github.com/cloudfoundry/gorouter/varz"
+	"github.com/cloudfoundry/dropsonde/autowire"
 	steno "github.com/cloudfoundry/gosteno"
-	"github.com/cloudfoundry/yagnats"
-	"github.com/pivotal-golang/localip"
+	vcap "github.com/dinp/gorouter/common"
+	"github.com/dinp/gorouter/config"
+	"github.com/dinp/gorouter/proxy"
+	"github.com/dinp/gorouter/registry"
+	"github.com/dinp/gorouter/varz"
 
-	"bytes"
-	"compress/zlib"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,24 +20,18 @@ import (
 var DrainTimeout = errors.New("router: Drain timeout")
 
 type Router struct {
-	config     *config.Config
-	proxy      proxy.Proxy
-	mbusClient yagnats.NATSConn
-	registry   *registry.RouteRegistry
-	varz       varz.Varz
-	component  *vcap.VcapComponent
+	config    *config.Config
+	proxy     proxy.Proxy
+	registry  *registry.RouteRegistry
+	varz      varz.Varz
+	component *vcap.VcapComponent
 
-	listener    net.Listener
-	activeConns uint32
-	connLock    sync.Mutex
-	idleConns   map[net.Conn]struct{}
-	drainDone   chan struct{}
-	serveDone   chan struct{}
+	listener net.Listener
 
 	logger *steno.Logger
 }
 
-func NewRouter(cfg *config.Config, p proxy.Proxy, mbusClient yagnats.NATSConn, r *registry.RouteRegistry, v varz.Varz,
+func NewRouter(cfg *config.Config, p proxy.Proxy, r *registry.RouteRegistry, v varz.Varz,
 	logCounter *vcap.LogCounter) (*Router, error) {
 
 	var host string
@@ -75,15 +62,12 @@ func NewRouter(cfg *config.Config, p proxy.Proxy, mbusClient yagnats.NATSConn, r
 	}
 
 	router := &Router{
-		config:     cfg,
-		proxy:      p,
-		mbusClient: mbusClient,
-		registry:   r,
-		varz:       v,
-		component:  component,
-		serveDone:  make(chan struct{}),
-		idleConns:  make(map[net.Conn]struct{}),
-		logger:     steno.NewLogger("router"),
+		config:    cfg,
+		proxy:     p,
+		registry:  r,
+		varz:      v,
+		component: component,
+		logger:    steno.NewLogger("router"),
 	}
 
 	if err := router.component.Start(); err != nil {
@@ -94,57 +78,11 @@ func NewRouter(cfg *config.Config, p proxy.Proxy, mbusClient yagnats.NATSConn, r
 }
 
 func (r *Router) Run() <-chan error {
-	r.registry.StartPruningCycle()
-
-	r.RegisterComponent()
-
-	// Subscribe register/unregister router
-	r.SubscribeRegister()
-	r.HandleGreetings()
-	r.SubscribeUnregister()
-
-	// Kickstart sending start messages
-	r.SendStartMessage()
-
-	r.mbusClient.AddReconnectedCB(func(conn *nats.Conn) {
-		r.logger.Infof("Reconnecting to NATS server %s...", conn.Opts.Url)
-		r.SendStartMessage()
-	})
-
-	// Schedule flushing active app's app_id
-	r.ScheduleFlushApps()
-
-	// Wait for one start message send interval, such that the router's registry
-	// can be populated before serving requests.
-	if r.config.StartResponseDelayInterval != 0 {
-		r.logger.Infof("Waiting %s before listening...", r.config.StartResponseDelayInterval)
-		time.Sleep(r.config.StartResponseDelayInterval)
-	}
+	r.registry.Register()
+	r.registry.StartReloadingCycle()
 
 	server := http.Server{
-		Handler: dropsonde.InstrumentedHandler(r.proxy),
-		ConnState: func(conn net.Conn, state http.ConnState) {
-			r.connLock.Lock()
-			switch state {
-			case http.StateActive:
-				r.activeConns++
-				delete(r.idleConns, conn)
-			case http.StateIdle:
-				r.activeConns--
-				r.idleConns[conn] = struct{}{}
-			case http.StateHijacked, http.StateClosed:
-				i := len(r.idleConns)
-				delete(r.idleConns, conn)
-				if i == len(r.idleConns) {
-					r.activeConns--
-				}
-				if r.drainDone != nil && r.activeConns == 0 {
-					close(r.drainDone)
-					r.drainDone = nil
-				}
-			}
-			r.connLock.Unlock()
-		},
+		Handler: autowire.InstrumentedHandler(r.proxy),
 	}
 
 	errChan := make(chan error, 1)
@@ -162,7 +100,6 @@ func (r *Router) Run() <-chan error {
 	go func() {
 		err := server.Serve(listener)
 		errChan <- err
-		close(r.serveDone)
 	}()
 
 	return errChan
@@ -171,17 +108,11 @@ func (r *Router) Run() <-chan error {
 func (r *Router) Drain(drainTimeout time.Duration) error {
 	r.listener.Close()
 
-	// no more accepts will occur
-	<-r.serveDone
-
 	drained := make(chan struct{})
-	r.connLock.Lock()
-	if r.activeConns == 0 {
+	go func() {
+		r.proxy.Wait()
 		close(drained)
-	} else {
-		r.drainDone = drained
-	}
-	r.connLock.Unlock()
+	}()
 
 	select {
 	case <-drained:
@@ -195,131 +126,4 @@ func (r *Router) Drain(drainTimeout time.Duration) error {
 func (r *Router) Stop() {
 	r.listener.Close()
 	r.component.Stop()
-}
-
-func (r *Router) RegisterComponent() {
-	r.component.Register(r.mbusClient)
-}
-
-func (r *Router) SubscribeRegister() {
-	r.subscribeRegistry("router.register", func(registryMessage *registryMessage) {
-		r.logger.Debugf("Got router.register: %v", registryMessage)
-
-		for _, uri := range registryMessage.Uris {
-			r.registry.Register(
-				uri,
-				registryMessage.makeEndpoint(),
-			)
-		}
-	})
-}
-
-func (r *Router) SubscribeUnregister() {
-	r.subscribeRegistry("router.unregister", func(registryMessage *registryMessage) {
-		r.logger.Debugf("Got router.unregister: %v", registryMessage)
-
-		for _, uri := range registryMessage.Uris {
-			r.registry.Unregister(
-				uri,
-				registryMessage.makeEndpoint(),
-			)
-		}
-	})
-}
-
-func (r *Router) HandleGreetings() {
-	r.mbusClient.Subscribe("router.greet", func(msg *nats.Msg) {
-		response, _ := r.greetMessage()
-		r.mbusClient.Publish(msg.Reply, response)
-	})
-}
-
-func (r *Router) SendStartMessage() {
-	b, err := r.greetMessage()
-	if err != nil {
-		panic(err)
-	}
-
-	// Send start message once at start
-	err = r.mbusClient.Publish("router.start", b)
-}
-
-func (r *Router) ScheduleFlushApps() {
-	if r.config.PublishActiveAppsInterval == 0 {
-		return
-	}
-
-	go func() {
-		t := time.NewTicker(r.config.PublishActiveAppsInterval)
-		x := time.Now()
-
-		for {
-			select {
-			case <-t.C:
-				y := time.Now()
-				r.flushApps(x)
-				x = y
-			}
-		}
-	}()
-}
-
-func (r *Router) flushApps(t time.Time) {
-	x := r.varz.ActiveApps().ActiveSince(t)
-
-	y, err := json.Marshal(x)
-	if err != nil {
-		r.logger.Warnf("flushApps: Error marshalling JSON: %s", err)
-		return
-	}
-
-	b := bytes.Buffer{}
-	w := zlib.NewWriter(&b)
-	w.Write(y)
-	w.Close()
-
-	z := b.Bytes()
-
-	r.logger.Debugf("Active apps: %d, message size: %d", len(x), len(z))
-
-	r.mbusClient.Publish("router.active_apps", z)
-}
-
-func (r *Router) greetMessage() ([]byte, error) {
-	host, err := localip.LocalIP()
-	if err != nil {
-		return nil, err
-	}
-
-	d := vcap.RouterStart{
-		Id:    r.component.UUID,
-		Hosts: []string{host},
-		MinimumRegisterIntervalInSeconds: r.config.StartResponseDelayIntervalInSeconds,
-	}
-
-	return json.Marshal(d)
-}
-
-func (r *Router) subscribeRegistry(subject string, successCallback func(*registryMessage)) {
-	callback := func(message *nats.Msg) {
-		payload := message.Data
-
-		var msg registryMessage
-
-		err := json.Unmarshal(payload, &msg)
-		if err != nil {
-			logMessage := fmt.Sprintf("%s: Error unmarshalling JSON (%d; %s): %s", subject, len(payload), payload, err)
-			r.logger.Warnd(map[string]interface{}{"payload": string(payload)}, logMessage)
-		}
-
-		logMessage := fmt.Sprintf("%s: Received message", subject)
-		r.logger.Debugd(map[string]interface{}{"message": msg}, logMessage)
-
-		successCallback(&msg)
-	}
-
-	_, err := r.mbusClient.Subscribe(subject, callback)
-	if err != nil {
-		r.logger.Errorf("Error subscribing to %s: %s", subject, err)
-	}
 }

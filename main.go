@@ -1,18 +1,14 @@
 package main
 
 import (
-	"github.com/apcera/nats"
-	cf_debug_server "github.com/cloudfoundry-incubator/cf-debug-server"
-	"github.com/cloudfoundry/dropsonde"
-	"github.com/cloudfoundry/gorouter/access_log"
-	vcap "github.com/cloudfoundry/gorouter/common"
-	"github.com/cloudfoundry/gorouter/config"
-	"github.com/cloudfoundry/gorouter/proxy"
-	rregistry "github.com/cloudfoundry/gorouter/registry"
-	"github.com/cloudfoundry/gorouter/router"
-	rvarz "github.com/cloudfoundry/gorouter/varz"
 	steno "github.com/cloudfoundry/gosteno"
-	"github.com/cloudfoundry/yagnats"
+	"github.com/dinp/gorouter/access_log"
+	vcap "github.com/dinp/gorouter/common"
+	"github.com/dinp/gorouter/config"
+	"github.com/dinp/gorouter/proxy"
+	rregistry "github.com/dinp/gorouter/registry"
+	"github.com/dinp/gorouter/router"
+	rvarz "github.com/dinp/gorouter/varz"
 
 	"flag"
 	"os"
@@ -33,18 +29,10 @@ func init() {
 func main() {
 	c := config.DefaultConfig()
 	logCounter := vcap.NewLogCounter()
+	InitLoggerFromConfig(c, logCounter)
 
 	if configFile != "" {
 		c = config.InitConfigFromFile(configFile)
-	}
-
-	InitLoggerFromConfig(c, logCounter)
-	logger := steno.NewLogger("router.main")
-
-	err := dropsonde.Initialize(c.Logging.MetronAddress, c.Logging.JobName)
-	if err != nil {
-		logger.Errorf("Dropsonde failed to initialize: %s", err.Error())
-		os.Exit(1)
 	}
 
 	// setup number of procs
@@ -52,34 +40,10 @@ func main() {
 		runtime.GOMAXPROCS(c.GoMaxProcs)
 	}
 
-	if c.DebugAddr != "" {
-		cf_debug_server.Run(c.DebugAddr)
-	}
+	InitLoggerFromConfig(c, logCounter)
+	logger := steno.NewLogger("router.main")
 
-	natsServers := c.NatsServers()
-	var natsClient yagnats.NATSConn
-	attempts := 3
-	for attempts > 0 {
-		natsClient, err = yagnats.Connect(natsServers)
-		if err == nil {
-			break
-		} else {
-			attempts--
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
-
-	if err != nil {
-		logger.Errorf("Error connecting to NATS: %s\n", err)
-		os.Exit(1)
-	}
-
-	natsClient.AddClosedCB(func(conn *nats.Conn) {
-		logger.Errorf("Close on NATS client. nats.Conn: %+v", *conn)
-		os.Exit(1)
-	})
-
-	registry := rregistry.NewRouteRegistry(c, natsClient)
+	registry := rregistry.NewRouteRegistry(c)
 
 	varz := rvarz.NewVarz(registry)
 
@@ -95,11 +59,13 @@ func main() {
 		Registry:        registry,
 		Reporter:        varz,
 		AccessLogger:    accessLogger,
-		SecureCookies:   c.SecureCookies,
 	}
 	p := proxy.NewProxy(args)
 
-	router, err := router.NewRouter(c, p, natsClient, registry, varz, logCounter)
+	rregistry.InitRedisConnPool(c)
+	defer rregistry.RedisConnPool.Close()
+
+	router, err := router.NewRouter(c, p, registry, varz, logCounter)
 	if err != nil {
 		logger.Errorf("An error occurred: %s", err.Error())
 		os.Exit(1)

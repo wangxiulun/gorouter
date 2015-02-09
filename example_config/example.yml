@@ -1,26 +1,19 @@
+#config/router.yml
 status:
   port: 8082
-  user:
-  pass:
-
-nats:
-  - host: "localhost"
-    port: 4222
-    user:
-    pass:
+  user: router
+  pass: routerPass
 
 logging:
-  file:
+  file: router.log
   syslog:
   level: debug
 
-port: 8081
+port: 8888
 index: 0
 
+pidfile: router.pid
 go_max_procs: 8
 
-publish_start_message_interval: 30
-prune_stale_droplets_interval: 30
-droplet_stale_threshold: 120
-publish_active_apps_interval: 0 # 0 means disabled
-secure_cookies: true
+redis_server: "127.0.0.1:6379"
+reload_uri_interval: 5

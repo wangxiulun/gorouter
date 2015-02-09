@@ -1,8 +1,8 @@
 package access_log
 
 import (
-	"github.com/cloudfoundry/gorouter/config"
 	steno "github.com/cloudfoundry/gosteno"
+	"github.com/dinp/gorouter/config"
 	"strconv"
 
 	"os"

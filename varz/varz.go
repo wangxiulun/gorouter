@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cloudfoundry/gorouter/registry"
-	"github.com/cloudfoundry/gorouter/route"
-	"github.com/cloudfoundry/gorouter/stats"
+	"github.com/dinp/gorouter/registry"
+	"github.com/dinp/gorouter/route"
+	"github.com/dinp/gorouter/stats"
 	metrics "github.com/rcrowley/go-metrics"
 )
 
@@ -240,9 +240,9 @@ func (x *RealVarz) CaptureBadGateway(*http.Request) {
 }
 
 func (x *RealVarz) CaptureAppStats(b *route.Endpoint, t time.Time) {
-	if b.ApplicationId != "" {
-		x.activeApps.Mark(b.ApplicationId, t)
-		x.topApps.Mark(b.ApplicationId, t)
+	if b.CanonicalAddr() != "" {
+		x.activeApps.Mark(b.CanonicalAddr(), t)
+		x.topApps.Mark(b.CanonicalAddr(), t)
 	}
 }
 

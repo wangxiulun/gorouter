@@ -21,7 +21,6 @@ import (
 	"github.com/cloudfoundry/gosteno"
 	"github.com/cloudfoundry/loggregatorlib/cfcomponent/instrumentation"
 	"github.com/davecgh/go-spew/spew"
-	"sync"
 	"sync/atomic"
 	"unicode"
 )
@@ -44,18 +43,15 @@ func NewDropsondeUnmarshaller(logger *gosteno.Logger) DropsondeUnmarshaller {
 	}
 
 	return &dropsondeUnmarshaller{
-		logger:                  logger,
-		receiveCounts:           receiveCounts,
-		logMessageReceiveCounts: make(map[string]*uint64),
+		logger:        logger,
+		receiveCounts: receiveCounts,
 	}
 }
 
 type dropsondeUnmarshaller struct {
-	logger                  *gosteno.Logger
-	receiveCounts           map[events.Envelope_EventType]*uint64
-	logMessageReceiveCounts map[string]*uint64
-	unmarshalErrorCount     uint64
-	sync.RWMutex
+	logger              *gosteno.Logger
+	receiveCounts       map[events.Envelope_EventType]*uint64
+	unmarshalErrorCount uint64
 }
 
 // Run reads byte slices from inputChan, unmarshalls them to Envelopes, and
@@ -81,25 +77,9 @@ func (u *dropsondeUnmarshaller) UnmarshallMessage(message []byte) (*events.Envel
 	}
 
 	u.logger.Debugf("dropsondeUnmarshaller: received message %v", spew.Sprintf("%v", envelope))
-
-	if envelope.GetEventType() == events.Envelope_LogMessage {
-		u.incrementLogMessageReceiveCount(envelope.GetLogMessage().GetAppId())
-	} else {
-		u.incrementReceiveCount(envelope.GetEventType())
-	}
+	u.incrementReceiveCount(envelope.GetEventType())
 
 	return envelope, nil
-}
-
-func (u *dropsondeUnmarshaller) incrementLogMessageReceiveCount(appId string) {
-	_, ok := u.logMessageReceiveCounts[appId]
-	if ok == false {
-		var count uint64
-		u.Lock()
-		u.logMessageReceiveCounts[appId] = &count
-		u.Unlock()
-	}
-	incrementCount(u.logMessageReceiveCounts[appId])
 }
 
 func (u *dropsondeUnmarshaller) incrementReceiveCount(eventType events.Envelope_EventType) {
@@ -118,19 +98,8 @@ func (m *dropsondeUnmarshaller) metrics() []instrumentation.Metric {
 		modifiedEventName[0] = unicode.ToLower(modifiedEventName[0])
 		metricName := string(modifiedEventName) + "Received"
 
-		if eventName == "LogMessage" {
-			m.RLock()
-			for appId, count := range m.logMessageReceiveCounts {
-				metricValue := atomic.LoadUint64(count)
-				tags := make(map[string]interface{})
-				tags["appId"] = appId
-				metrics = append(metrics, instrumentation.Metric{Name: metricName, Value: metricValue, Tags: tags})
-			}
-			m.RUnlock()
-		} else {
-			metricValue := atomic.LoadUint64(m.receiveCounts[events.Envelope_EventType(eventType)])
-			metrics = append(metrics, instrumentation.Metric{Name: metricName, Value: metricValue})
-		}
+		metricValue := atomic.LoadUint64(m.receiveCounts[events.Envelope_EventType(eventType)])
+		metrics = append(metrics, instrumentation.Metric{Name: metricName, Value: metricValue})
 	}
 
 	metrics = append(metrics, instrumentation.Metric{

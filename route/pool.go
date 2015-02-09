@@ -56,13 +56,8 @@ func (p *Pool) Put(endpoint *Endpoint) bool {
 			return false
 		}
 
-		oldEndpoint := e.endpoint
 		e.endpoint = endpoint
 
-		if oldEndpoint.PrivateInstanceId != endpoint.PrivateInstanceId {
-			delete(p.index, oldEndpoint.PrivateInstanceId)
-			p.index[endpoint.PrivateInstanceId] = e
-		}
 	} else {
 		e = &endpointElem{
 			endpoint: endpoint,
@@ -72,37 +67,11 @@ func (p *Pool) Put(endpoint *Endpoint) bool {
 		p.endpoints = append(p.endpoints, e)
 
 		p.index[endpoint.CanonicalAddr()] = e
-		p.index[endpoint.PrivateInstanceId] = e
 	}
 
 	e.updated = time.Now()
 
 	return !found
-}
-
-func (p *Pool) PruneEndpoints(defaultThreshold time.Duration) {
-	p.lock.Lock()
-
-	last := len(p.endpoints)
-	now := time.Now()
-
-	for i := 0; i < last; {
-		e := p.endpoints[i]
-
-		staleTime := now.Add(-defaultThreshold)
-		if e.endpoint.staleThreshold > 0 && e.endpoint.staleThreshold < defaultThreshold {
-			staleTime = now.Add(-e.endpoint.staleThreshold)
-		}
-
-		if e.updated.Before(staleTime) {
-			p.removeEndpoint(e)
-			last--
-		} else {
-			i++
-		}
-	}
-
-	p.lock.Unlock()
 }
 
 func (p *Pool) Remove(endpoint *Endpoint) bool {
@@ -133,7 +102,6 @@ func (p *Pool) removeEndpoint(e *endpointElem) {
 	p.endpoints = es
 
 	delete(p.index, e.endpoint.CanonicalAddr())
-	delete(p.index, e.endpoint.PrivateInstanceId)
 }
 
 func (p *Pool) Endpoints(initial string) EndpointIterator {
@@ -205,14 +173,6 @@ func (p *Pool) IsEmpty() bool {
 	p.lock.Unlock()
 
 	return l == 0
-}
-
-func (p *Pool) MarkUpdated(t time.Time) {
-	p.lock.Lock()
-	for _, e := range p.endpoints {
-		e.updated = t
-	}
-	p.lock.Unlock()
 }
 
 func (p *Pool) endpointFailed(endpoint *Endpoint) {
