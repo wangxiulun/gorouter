@@ -2,6 +2,7 @@ gorouter
 ==========
 
 从CloudFoundry gorouter(tag 45ca951297) fork，更改实现。
+
 主要修改点：
 CloudFoundry gorouter通过侦听NATS汇报的信息生成路由表；
 而现在gorouter去redis里读取相应信息生成路由表（gorouter会在内存中保存份路由表，如果redis宕掉将暂停更新路由表）。
