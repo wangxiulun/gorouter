@@ -36,8 +36,10 @@ const DefaultOrigin = "router"
 const DefaultDestination = "localhost:3457"
 
 func init() {
+	log.Println("begin init for dropsonde")
 	emitter, _ := CreateDefaultEmitter()
 	Initialize(emitter)
+	log.Println("end init for dropsonde")
 }
 
 // InstrumentedHandler returns a Handler pre-configured to emit HTTP server
