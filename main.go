@@ -42,7 +42,7 @@ func main() {
 	InitLoggerFromConfig(c, logCounter)
 	logger := steno.NewLogger("router.main")
 	//dropsonde.Initialize(c.Logging.MetronAddress, c.Logging.JobName)
-	logger.Println("main.go====has read config")
+	logger.Info("main.go====has read config")
 	registry := rregistry.NewRouteRegistry(c)
 
 	varz := rvarz.NewVarz(registry)
@@ -61,7 +61,7 @@ func main() {
 		AccessLogger:    accessLogger,
 	}
 	p := proxy.NewProxy(args)
-	logger.Println("main.go====has exec proxy.NewProxy(args)")
+	logger.Info("main.go====has exec proxy.NewProxy(args)")
 	rregistry.InitRedisConnPool(c)
 	defer rregistry.RedisConnPool.Close()
 
