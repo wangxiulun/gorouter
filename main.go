@@ -28,8 +28,8 @@ func init() {
 }
 
 func main() {
-	logger := steno.NewLogger("router.main")
-	logger.Info("begin read config file")
+	fmt.Println("begin Main")
+	fmt.Println("1.begin read config")
 	c := config.DefaultConfig()
 	logCounter := vcap.NewLogCounter()
 	InitLoggerFromConfig(c, logCounter)
@@ -37,14 +37,17 @@ func main() {
 	if configFile != "" {
 		c = config.InitConfigFromFile(configFile)
 	}
-	logger.Info("end read config file")
+	fmt.Println("1.end read config")
+	//logger.Info("end read config file")
 	// setup number of procs
 	if c.GoMaxProcs != 0 {
 		runtime.GOMAXPROCS(c.GoMaxProcs)
 	}
-
-	InitLoggerFromConfig(c, logCounter)
 	
+	
+	InitLoggerFromConfig(c, logCounter)
+	logger := steno.NewLogger("router.main")
+	//logger.Info("begin read config file")
 	//dropsonde.Initialize(c.Logging.MetronAddress, c.Logging.JobName)
 	logger.Info("main.go====has read config")
 	registry := rregistry.NewRouteRegistry(c)
