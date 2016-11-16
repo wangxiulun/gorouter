@@ -9,7 +9,7 @@ import (
 	rregistry "github.com/dinp/gorouter/registry"
 	"github.com/dinp/gorouter/router"
 	rvarz "github.com/dinp/gorouter/varz"
-
+        "github.com/cloudfoundry/dropsonde"
 	"flag"
 	"os"
 	"os/signal"
@@ -34,7 +34,12 @@ func main() {
 	if configFile != "" {
 		c = config.InitConfigFromFile(configFile)
 	}
-
+	//dropsonde.Initialize(c.Logging.MetronAddress, c.Logging.JobName)
+	err := dropsonde.Initialize(c.Logging.MetronAddress, c.Logging.JobName)
+	if err != nil {
+		logger.Errorf("Dropsonde failed to initialize: %s", err.Error())
+		os.Exit(1)
+	}
 	// setup number of procs
 	if c.GoMaxProcs != 0 {
 		runtime.GOMAXPROCS(c.GoMaxProcs)
