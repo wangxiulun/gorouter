@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"syscall"
 	"time"
+	"fmt"
 )
 
 var configFile string
@@ -23,6 +24,7 @@ func init() {
 	flag.StringVar(&configFile, "c", "", "Configuration File")
 
 	flag.Parse()
+	fmt.Println("configFile is ",configFile)
 }
 
 func main() {
