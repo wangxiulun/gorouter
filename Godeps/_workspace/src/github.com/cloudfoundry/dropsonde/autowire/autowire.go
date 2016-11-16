@@ -32,7 +32,7 @@ import (
 var autowiredEmitter emitter.EventEmitter
 
 const runtimeStatsInterval = 10 * time.Second
-
+const DefaultOrigin = "router"
 const DefaultDestination = "localhost:3457"
 
 func init() {
@@ -77,9 +77,11 @@ func Initialize(emitter emitter.EventEmitter) {
 
 func CreateDefaultEmitter() (emitter.EventEmitter, string) {
 	origin := os.Getenv("DROPSONDE_ORIGIN")
+	
 	if len(origin) == 0 {
 		log.Println("Failed to auto-initialize dropsonde: DROPSONDE_ORIGIN environment variable not set")
-		return nil, ""
+		//return nil, ""
+		origin := DefaultOrigin
 	}
 
 	destination := os.Getenv("DROPSONDE_DESTINATION")
@@ -99,7 +101,7 @@ func CreateDefaultEmitter() (emitter.EventEmitter, string) {
 		log.Printf("Failed to auto-initialize dropsonde: %v\n", err)
 		return nil, destination
 	}
-
+	log.Println("init dropsonde")
 	return emitter.NewEventEmitter(hbEmitter, origin), destination
 }
 
