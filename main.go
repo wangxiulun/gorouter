@@ -9,7 +9,6 @@ import (
 	rregistry "github.com/dinp/gorouter/registry"
 	"github.com/dinp/gorouter/router"
 	rvarz "github.com/dinp/gorouter/varz"
-        "github.com/cloudfoundry/dropsonde"
 	"flag"
 	"os"
 	"os/signal"
@@ -43,12 +42,7 @@ func main() {
 	InitLoggerFromConfig(c, logCounter)
 	logger := steno.NewLogger("router.main")
 	//dropsonde.Initialize(c.Logging.MetronAddress, c.Logging.JobName)
-	dropsonde.Initialize("localhost:3457", "router", "z1", "0")
-	err := dropsonde.Initialize("localhost:3457", "router", "z1", "0")
-	if err != nil {
-		logger.Errorf("Dropsonde failed to initialize: %s", err.Error())
-		os.Exit(1)
-	}
+	
 	registry := rregistry.NewRouteRegistry(c)
 
 	varz := rvarz.NewVarz(registry)
