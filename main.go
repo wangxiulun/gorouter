@@ -43,7 +43,7 @@ func main() {
 	InitLoggerFromConfig(c, logCounter)
 	logger := steno.NewLogger("router.main")
 	//dropsonde.Initialize(c.Logging.MetronAddress, c.Logging.JobName)
-	err := dropsonde.initialize()
+	err := dropsonde.initialize("localhost:3457", "router", "z1", "0")
 	if err != nil {
 		logger.Errorf("Dropsonde failed to initialize: %s", err.Error())
 		os.Exit(1)
