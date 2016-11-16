@@ -83,7 +83,7 @@ func CreateDefaultEmitter() (emitter.EventEmitter, string) {
 		//return nil, ""
 		
 	}
-        origin := DefaultOrigin
+        origin = DefaultOrigin
 	destination := os.Getenv("DROPSONDE_DESTINATION")
 	if len(destination) == 0 {
 		log.Println("DROPSONDE_DESTINATION not set. Using " + DefaultDestination)
