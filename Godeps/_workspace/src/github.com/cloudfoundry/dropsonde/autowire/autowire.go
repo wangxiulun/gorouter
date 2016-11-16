@@ -81,9 +81,9 @@ func CreateDefaultEmitter() (emitter.EventEmitter, string) {
 	if len(origin) == 0 {
 		log.Println("Failed to auto-initialize dropsonde: DROPSONDE_ORIGIN environment variable not set")
 		//return nil, ""
-		origin := DefaultOrigin
+		
 	}
-
+        origin := DefaultOrigin
 	destination := os.Getenv("DROPSONDE_DESTINATION")
 	if len(destination) == 0 {
 		log.Println("DROPSONDE_DESTINATION not set. Using " + DefaultDestination)
