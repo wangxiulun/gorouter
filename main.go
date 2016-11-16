@@ -34,12 +34,7 @@ func main() {
 	if configFile != "" {
 		c = config.InitConfigFromFile(configFile)
 	}
-	//dropsonde.Initialize(c.Logging.MetronAddress, c.Logging.JobName)
-	err := dropsonde.initialize()
-	if err != nil {
-		logger.Errorf("Dropsonde failed to initialize: %s", err.Error())
-		os.Exit(1)
-	}
+
 	// setup number of procs
 	if c.GoMaxProcs != 0 {
 		runtime.GOMAXPROCS(c.GoMaxProcs)
@@ -47,7 +42,12 @@ func main() {
 
 	InitLoggerFromConfig(c, logCounter)
 	logger := steno.NewLogger("router.main")
-
+	//dropsonde.Initialize(c.Logging.MetronAddress, c.Logging.JobName)
+	err := dropsonde.initialize()
+	if err != nil {
+		logger.Errorf("Dropsonde failed to initialize: %s", err.Error())
+		os.Exit(1)
+	}
 	registry := rregistry.NewRouteRegistry(c)
 
 	varz := rvarz.NewVarz(registry)
