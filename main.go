@@ -35,7 +35,7 @@ func main() {
 		c = config.InitConfigFromFile(configFile)
 	}
 	//dropsonde.Initialize(c.Logging.MetronAddress, c.Logging.JobName)
-	err := dropsonde.Initialize(c.Logging.MetronAddress, c.Logging.JobName)
+	err := dropsonde.initialize()
 	if err != nil {
 		logger.Errorf("Dropsonde failed to initialize: %s", err.Error())
 		os.Exit(1)
