@@ -87,7 +87,7 @@ func main() {
 	errChan := router.Run()
 
 	logger.Info("gorouter.started")
-
+	fmt.Println("gorouter.started")
 	select {
 	case err := <-errChan:
 		if err != nil {
