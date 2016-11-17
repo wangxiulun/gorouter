@@ -52,7 +52,7 @@ func main() {
 	logger.Debug("test logger")
 	//logger.Info("begin read config file")
 	//dropsonde.Initialize(c.Logging.MetronAddress, c.Logging.JobName)
-	logger.Debug("main.go====has read config")
+	fmt.Println("main.go====has read config")
 	registry := rregistry.NewRouteRegistry(c)
 
 	varz := rvarz.NewVarz(registry)
@@ -71,7 +71,7 @@ func main() {
 		AccessLogger:    accessLogger,
 	}
 	p := proxy.NewProxy(args)
-	logger.Debug("main.go====has exec proxy.NewProxy(args)")
+	fmt.Println("main.go====has exec proxy.NewProxy(args)")
 	rregistry.InitRedisConnPool(c)
 	defer rregistry.RedisConnPool.Close()
 
@@ -80,7 +80,7 @@ func main() {
 		logger.Errorf("An error occurred: %s", err.Error())
 		os.Exit(1)
 	}
-
+	fmt.Println("main.go====has rregistry.InitRedisConnPool(c)")
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT, syscall.SIGUSR1)
 
