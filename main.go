@@ -132,6 +132,7 @@ func main() {
 }
 
 func InitLoggerFromConfig(c *config.Config, logCounter *vcap.LogCounter) {
+	fmt.Println("begin InitLoggerFromConfig ")
 	l, err := steno.GetLogLevel(c.Logging.Level)
 	if err != nil {
 		panic(err)
@@ -157,4 +158,5 @@ func InitLoggerFromConfig(c *config.Config, logCounter *vcap.LogCounter) {
 	}
 
 	steno.Init(stenoConfig)
+	fmt.Println("end InitLoggerFromConfig")
 }
