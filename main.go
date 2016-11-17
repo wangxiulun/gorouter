@@ -46,7 +46,9 @@ func main() {
 	
 	
 	InitLoggerFromConfig(c, logCounter)
-	logger := steno.NewLogger("router.main")
+	fmt.Println("begin steno.NewLogger")
+	logger := steno.NewLogger("router.log")
+	fmt.Println("end steno.NewLogger")
 	//logger.Info("begin read config file")
 	//dropsonde.Initialize(c.Logging.MetronAddress, c.Logging.JobName)
 	logger.Info("main.go====has read config")
